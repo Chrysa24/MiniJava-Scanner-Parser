@@ -1,0 +1,102 @@
+/* Simple +/-/* expression language; parser evaluates constant expressions on the fly*/
+/**
+ *  Package and Import Specifications
+ */
+import java_cup.runtime.*;
+
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+/**
+ *  Symbol Lists
+ */
+
+//StringBuffer stringBuffer = new StringBuffer();
+
+/* Terminals (tokens returned by the scanner). */
+terminal            COMA, PLUS, LPAREN, RPAREN,RPARLBRA,RBRACKET, IF, ELSE, PREFIX;
+terminal			REVERSE, IDENTIFIER;
+terminal String     STRING_LITERAL;        // our scanner provides numbers as strings
+
+/*  Non terminals */
+
+non terminal    expr,expr_list,expr_fun;
+non terminal    Prefix,Goal,funDec_list;
+non terminal  	Reverse, funDec, funCall,arg_list,arg_list_call;
+
+/**
+ *  Precedence Declarations
+ */
+ 
+precedence left IF, ELSE, LPAREN, RPAREN;
+precedence left PLUS;
+precedence left REVERSE, IDENTIFIER, RPARLBRA;
+
+/**
+ *  The Grammar Rules
+ */
+ 
+
+Goal	::=	funDec_list:F_L expr_list:E_L	{: System.out.println("public class Main {\n\tpublic static void main(String[] args) {\n\t\t" + E_L +  "\n\t}\n\t" + F_L + "\n}");	:}
+		|	funDec_list:F_L					{: System.out.println("public class Main {\n\tpublic static void main(String[] args) {\n\t\t"  +  "\n\t}\n\t" + F_L + "\n}");	:}
+		|	IDENTIFIER:id expr_list:E_L		{: System.out.println("Error: Cannot find symbol: " + id + "\n");	:}
+		|	IDENTIFIER:id					{: System.out.println("Error: Cannot find symbol: " + id + "\n");	:}
+		|	IDENTIFIER:id PLUS expr_list	{: System.out.println("Error: Cannot find symbol: " + id + "\n");	:}
+		|	funCall: fC expr_list			{: System.out.println("Error: Cannot find symbol: " + fC + "\n");	:}
+		|	funCall: fC 					{: System.out.println("Error: Cannot find symbol: " + fC + "\n");	:}
+		|	funCall: fC PLUS expr_list		{: System.out.println("Error: Cannot find symbol: " + fC + "\n");	:}
+;
+
+funDec_list	::= funDec_list:F_L funDec:fD 	{:	RESULT= ( F_L + "\n\t" + fD ); :}
+			|	funDec:fD 					{: RESULT= ( fD );	:}
+			|								{: RESULT="";	:}
+;
+
+funDec	::=	IDENTIFIER:id LPAREN arg_list:arg RPARLBRA expr_fun:e RBRACKET {: RESULT ="public static String " + id + "(" + arg+ ") {\n\t\t" + e + "\n\t}"; :}
+;
+
+
+funCall	::= IDENTIFIER:id LPAREN arg_list_call:arg RPAREN	{: RESULT= id + "(" + arg + ")" ;	:}
+;
+
+arg_list	::=  expr:e COMA arg_list:arg_l	{: RESULT= "String " + e + ", " + arg_l;	:}
+			|										{: RESULT= "";		:}
+			| expr:e							{: RESULT= "String " + e;		:}
+;
+
+arg_list_call	::=  expr:e COMA arg_list_call:arg_l	{: RESULT= e + "," + arg_l;	:}
+				|										{: RESULT= "";		:}
+				| expr:e								{: RESULT= e;		:}
+;
+
+expr_list ::= expr:e expr_list:e_l      {:  RESULT=  ("System.out.println(" + e +");" + "\n\t\t" + e_l ) ;     :}
+            | expr:e                	{:  RESULT= "System.out.println(" + e +");\n";     :}
+;
+
+expr_fun ::= expr:e              		{:  RESULT= "return " + e + ";";     :}
+;
+
+
+expr	::=		expr:e1 PLUS  expr:e2    					    {: RESULT = ("(" + e1 + "+" + e2+ ")");	:}
+		|		Reverse:re										{: RESULT = ("(new StringBuilder" + re + ".toString())" );	:} 
+		|		IF LPAREN Prefix:pr RPAREN expr:e2 ELSE expr:e3	{: RESULT= ("((" + pr + ") ? (" + e2 + ") : (" + e3 + "))");  :} 
+		|		funCall:fC										{: RESULT=  fC ;	:}
+		|		STRING_LITERAL:s	    					    {: RESULT = "\"" + s + "\"";  :}
+		|		IDENTIFIER:id 									{: RESULT = id;  :}
+;
+
+Prefix	::=		expr:e1 PREFIX expr:e2		{: RESULT= ( "(" + e2 + ").startsWith(" + e1+ ")");	:}
+;
+
+Reverse			::=		REVERSE expr:e		{: RESULT ="(" + e + ").reverse()" ;	:} 
+;
+
